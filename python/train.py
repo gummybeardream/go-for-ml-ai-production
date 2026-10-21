@@ -4,19 +4,6 @@ import tensorflow as tf
 fashion_mnist = tf.keras.datasets.fashion_mnist
 (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
 
-class_names = [
-    "T-shirt/top",
-    "Trouser",
-    "Pullover",
-    "Dress",
-    "Coat",
-    "Sandal",
-    "Shirt",
-    "Sneaker",
-    "Bag",
-    "Ankle boot",
-]
-
 
 def print_image_statistics(name, images):
     print(f"{name} data type:", images.dtype)
@@ -31,18 +18,42 @@ train_images = train_images.astype("float32") / 255.0
 test_images = test_images.astype("float32") / 255.0
 
 
-def assert_normalized_images(name, images):
+def assert_normalized_images(name, images, labels):
     assert images.dtype == "float32", f"{name} must use float32"
     assert images.min() >= 0.0, f"{name} contains a value below 0.0"
     assert images.max() <= 1.0, f"{name} contains a value above 1.0"
     assert images.ndim == 3, f"{name} must have three dimensions"
     assert images.shape[1:] == (28, 28), f"{name} images must be 28 by 28"
-    assert train_images.shape[0] == train_labels.shape[0]
-    assert test_images.shape[0] == test_labels.shape[0]
+    assert images.shape[0] == labels.shape[0], f"{name} must have one label per image"
 
 
-assert_normalized_images("Training images", train_images)
-assert_normalized_images("Test images", test_images)
+assert_normalized_images("Training images", train_images, train_labels)
+assert_normalized_images("Test images", test_images, test_labels)
 
 print_image_statistics("Training images after normalization", train_images)
 print_image_statistics("Test images after normalization", test_images)
+
+
+# Define and build the model by setting up the layers
+model = tf.keras.Sequential(
+    [
+        tf.keras.Input(shape=(28, 28), name="image"),
+        tf.keras.layers.Flatten(name="flatten"),
+        tf.keras.layers.Dense(128, activation="relu", name="hidden"),
+        tf.keras.layers.Dense(10, name="logits"),
+    ]
+)
+
+model.summary()
+
+# Compile the model
+model.compile(
+    optimizer="adam",
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=["accuracy"],
+)
+
+# Display the training configuration for verification
+print("Model compiled:", model.compiled)
+print("Optimizer:", type(model.optimizer).__name__)
+print("Loss:", type(model.loss).__name__)

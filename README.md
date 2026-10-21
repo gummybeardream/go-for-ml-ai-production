@@ -3,7 +3,7 @@
 # Fashion MNIST Python and GoMLX Comparison
 
 ## Objective
-Compare model execution times under Python and Go using the Fashion-MNIST dataset. Export the Python model using ONNX and read the model in to GOMLX to compare predictions between both models.
+Compare model execution times under Python and Go using the Fashion-MNIST dataset. Export the Python model using ONNX and read the model into GoMLX to compare predictions between both models.
 
 After training the model on 60,000 images supplied by the Fashion-MNIST dataset, 10,000 test images will be used to evaluate how well the model can classify each article of clothing into the 10 available numeric labels corresponding to clothing labels.
 
@@ -23,4 +23,34 @@ Fashion-MNIST's original images use `uint8` as their datatype while the original
 
 The training and test images have been converted to `float32`. The pixel values have been divided by `255.0`, producing values from `0.0` to `1.0`. The same preprocessing will be performed in Go. 
 
+## Model Architecture
+Defining the Model:
 
+```python
+model = tf.keras.Sequential(
+    [
+        tf.keras.Input(shape=(28, 28), name="image"),
+        tf.keras.layers.Flatten(name="flatten"),
+        tf.keras.layers.Dense(128, activation="relu", name="hidden"),
+        tf.keras.layers.Dense(10, name="logits"),
+    ]
+)
+```
+
+* Inputs will be 28 by 28 images. There is no batch size specified so that Keras can accept one or more images at once
+* The data will be rearranged into one flattened sequence containing 784 values. This does not discard pixels, it only changes the shape
+* The Dense layer will connect every one of the 784 input values to each of its 128 neurons. ReLU helps the hidden layer learn nonlinear relationships
+* The output layer defines that there are 10 output neurons because Fashion-MNIST has ten categories
+
+Compiling the Model:
+
+```python
+model.compile(
+    optimizer="adam",
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=["accuracy"],
+)
+```
+* `optimizer="adam"` determines how weights are updated
+* `SparseCategoricalCrossentropy` measures classification error. The final ten values are logits, so the loss uses `from_logits=True`
+* `metrics=["accuracy"]` reports the percentage of correct predictions
