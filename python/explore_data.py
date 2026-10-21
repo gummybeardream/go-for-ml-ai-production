@@ -31,10 +31,13 @@ class_names = [
 
 print("Train label name and number:", class_names[train_labels[0]], train_labels[0])
 
-# Display one image
-plt.figure()
-plt.imshow(train_images[0], cmap="gray")
-plt.colorbar()
-plt.title(class_names[train_labels[0]])
-plt.grid(False)
+# Display the first 25 images from the training set
+plt.figure(figsize=(10, 10))
+for i in range(25):
+    plt.subplot(5, 5, i + 1)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(train_images[i], cmap=plt.cm.binary)
+    plt.xlabel(class_names[train_labels[i]])
 plt.show()
