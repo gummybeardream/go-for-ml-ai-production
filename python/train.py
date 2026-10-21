@@ -17,13 +17,15 @@ print_image_statistics("Test images before normalization", test_images)
 train_images = train_images.astype("float32") / 255.0
 test_images = test_images.astype("float32") / 255.0
 
-assert train_images.dtype == "float32"
-assert train_images.min() >= 0.0
-assert train_images.max() <= 1.0
 
-assert test_images.dtype == "float32"
-assert test_images.min() >= 0.0
-assert test_images.max() <= 1.0
+def assert_normalized_images(name, images):
+    assert images.dtype == "float32", f"{name} must use float32"
+    assert images.min() >= 0.0, f"{name} contains a value below 0.0"
+    assert images.max() <= 1.0, f"{name} contains a value above 1.0"
+
+
+assert_normalized_images("Training images", train_images)
+assert_normalized_images("Test images", test_images)
 
 print_image_statistics("Training images after normalization", train_images)
 print_image_statistics("Test images after normalization", test_images)
