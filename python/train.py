@@ -57,3 +57,24 @@ model.compile(
 print("Model compiled:", model.compiled)
 print("Optimizer:", type(model.optimizer).__name__)
 print("Loss:", type(model.loss).__name__)
+
+# Train the model
+history = model.fit(
+    train_images,
+    train_labels,
+    epochs=5,
+    batch_size=32,
+    validation_split=0.1,
+)
+
+# Evaluate the trained model
+test_loss, test_accuracy = model.evaluate(
+    test_images,
+    test_labels,
+    verbose=2,
+)
+
+print("Test loss:", test_loss)
+print("Test accuracy:", test_accuracy)
+
+model.save("artifacts/fashion_mnist.keras")
