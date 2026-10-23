@@ -1,0 +1,16 @@
+{
+  "test_images": 10000,
+  "batch_size": 32,
+  "warmup_runs": 1,
+  "repetitions": 5,
+  "durations_seconds": [
+    0.1306954580359161,
+    0.13340841699391603,
+    0.1314016660908237,
+    0.13272108300589025,
+    0.13249120803084224
+  ],
+  "average_duration_seconds": 0.13214356643147768,
+  "throughput_images_per_second": 75675.26948188919,
+  "accuracy": 0.8714
+}

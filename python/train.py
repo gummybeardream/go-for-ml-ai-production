@@ -7,6 +7,7 @@ fashion_mnist = tf.keras.datasets.fashion_mnist
 
 def print_image_statistics(name, images):
     print(f"{name} data type:", images.dtype)
+    print(f"{name} shape:", images.shape)
     print(f"{name} minimum pixel value:", images.min())
     print(f"{name} maximum pixel value:", images.max())
 

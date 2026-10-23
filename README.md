@@ -1,5 +1,3 @@
-# go-for-ml-ai-production
-
 # Fashion MNIST Python and GoMLX Comparison
 
 ## Objective
@@ -88,3 +86,52 @@ Test Accuracy: 87.14%
 Test Loss: 0.3622
 ### Results Analysis
 Training accuracy increased from 82.36% to 89.00% over five epochs, while validation accuracy increased from 85.30% to 87.83%. Training and validation loss also decreased during every epoch, indicating that the model continued learning useful patterns. The final difference between training and validation accuracy was 1.17 percentage points, showing a small generalization gap and no clear evidence of harmful overfitting. The model achieved 87.14% accuracy on the 10,000 image test set, which was close to its final validation accuracy of 87.83%. This suggests that validation performance was a reasonable estimate of performance on unseen data.
+
+## Python Inference Benchmark
+
+### Methodology
+
+The saved Keras model was loaded from `artifacts/fashion_mnist.keras`.
+The 10,000 Fashion-MNIST test images were converted to `float32` and
+normalized from `0–255` to `0.0–1.0`, matching the preprocessing used
+during training.
+
+The model performed one untimed warm-up prediction over the complete
+test set. It then performed five timed inference runs using a batch size
+of 32. Each timed run predicted all 10,000 test images. Model loading,
+data loading, normalization, accuracy calculation, and file writing were
+excluded from the timed section.
+
+### Results
+
+| Run | Duration (seconds) |
+|---:|---:|
+| 1 | 0.1307 |
+| 2 | 0.1334 |
+| 3 | 0.1314 |
+| 4 | 0.1327 |
+| 5 | 0.1325 |
+| **Average** | **0.1321** |
+
+- Test images per run: 10,000
+- Batch size: 32
+- Average throughput: approximately 75,675 images per second
+- Prediction accuracy: 87.14%
+- Raw results: `results/python_benchmark.json`
+- Saved predictions: `results/python_predictions.csv`
+
+### Interpretation
+
+The five measured durations were close together, ranging from
+approximately 0.1307 to 0.1334 seconds. This indicates that the full
+warm-up prediction reduced one-time initialization effects and produced
+consistent measurements. The model processed approximately 75,675
+images per second in batches of 32.
+
+The benchmark predictions achieved 87.14% accuracy, matching the earlier
+test evaluation. This confirms that loading the saved model preserved
+its learned weights and prediction behavior.
+
+These results establish the Python baseline. They do not yet show
+whether Python or GoMLX is faster; that conclusion will be made after
+running the equivalent GoMLX benchmark under the same conditions.
