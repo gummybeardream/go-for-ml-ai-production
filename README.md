@@ -85,7 +85,9 @@ Test Accuracy: 87.14%
 
 Test Loss: 0.3622
 ### Results Analysis
-Training accuracy increased from 82.36% to 89.00% over five epochs, while validation accuracy increased from 85.30% to 87.83%. Training and validation loss also decreased during every epoch, indicating that the model continued learning useful patterns. The final difference between training and validation accuracy was 1.17 percentage points, showing a small generalization gap and no clear evidence of harmful overfitting. The model achieved 87.14% accuracy on the 10,000 image test set, which was close to its final validation accuracy of 87.83%. This suggests that validation performance was a reasonable estimate of performance on unseen data.
+Training accuracy increased from 82.36% to 89.00% over five epochs, while validation accuracy increased from 85.30% to 87.83%. Training and validation loss also decreased during every epoch, indicating that the model continued learning useful patterns.
+
+The final difference between training and validation accuracy was 1.17 percentage points, showing a small generalization gap and no clear evidence of harmful overfitting. The model achieved 87.14% accuracy on the 10,000 image test set, which was close to its final validation accuracy of 87.83%. This suggests that validation performance was a reasonable estimate of performance on unseen data.
 
 ## Python Inference Benchmark
 
@@ -135,3 +137,27 @@ its learned weights and prediction behavior.
 These results establish the Python baseline. They do not yet show
 whether Python or GoMLX is faster; that conclusion will be made after
 running the equivalent GoMLX benchmark under the same conditions.
+
+## ONNX Export and Verification
+
+The trained Keras model was exported to
+`artifacts/fashion_mnist.onnx` using ONNX opset 15. The exported model
+accepts a dynamic batch of normalized `float32` images with shape
+`(batch, 28, 28)` and produces ten logits for each image.
+
+The ONNX checker accepted the exported graph, and ONNX Runtime
+successfully executed it on all 10,000 test images.
+
+| Measurement | Keras | ONNX |
+|---|---:|---:|
+| Test accuracy | 87.14% | 87.14% |
+| Predicted classes | 10,000 | 10,000 |
+
+The Keras and ONNX models agreed on all 10,000 predicted classes,
+producing 100% class agreement. The maximum absolute difference between
+their raw logits was approximately `1.53 × 10⁻⁵` or `0.00001526`. This small difference
+is consistent with normal floating-point variation between execution
+engines and did not change any predicted classes.
+
+These results indicate that the ONNX conversion preserved the model's
+prediction behavior.

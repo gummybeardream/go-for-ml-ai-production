@@ -2,3 +2,6 @@ tensorflow
 matplotlib
 ruff
 numpy
+onnx
+onnxruntime
+tf2onnx

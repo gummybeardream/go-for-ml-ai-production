@@ -1,0 +1,20 @@
+{
+  "onnx_opset_version": 15,
+  "input_name": "image",
+  "input_shape": [
+    "unk__20",
+    28,
+    28
+  ],
+  "input_type": "tensor(float)",
+  "output_name": "Identity:0",
+  "output_shape": [
+    "unk__21",
+    10
+  ],
+  "output_type": "tensor(float)",
+  "keras_accuracy": 0.8714,
+  "onnx_accuracy": 0.8714,
+  "class_agreement": 1.0,
+  "maximum_absolute_difference": 1.52587890625e-05
+}
