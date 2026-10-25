@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gomlx/compute/gobackend"
 	"github.com/gomlx/gomlx/core/graph"
@@ -15,18 +17,34 @@ import (
 )
 
 const (
-	testImageCount     = 10_000
-	imageHeight        = 28
-	imageWidth         = 28
-	inferenceBatchSize = 32
-	classCount         = 10
+	testImageCount       = 10_000
+	imageHeight          = 28
+	imageWidth           = 28
+	inferenceBatchSize   = 32
+	classCount           = 10
+	benchmarkRepetitions = 5
+	warmupRuns           = 1
 
 	imagesPath            = "../artifacts/fashion_mnist_test_images.bin"
 	labelsPath            = "../artifacts/fashion_mnist_test_labels.bin"
 	modelPath             = "../artifacts/fashion_mnist.onnx"
 	goPredictionsPath     = "../results/go_predictions.csv"
 	pythonPredictionsPath = "../results/python_predictions.csv"
+	goBenchmarkPath       = "../results/go_benchmark.json"
 )
+
+type benchmarkResults struct {
+	TestImages                int       `json:"test_images"`
+	BatchSize                 int       `json:"batch_size"`
+	WarmupRuns                int       `json:"warmup_runs"`
+	Repetitions               int       `json:"repetitions"`
+	DurationsSeconds          []float64 `json:"durations_seconds"`
+	AverageDurationSeconds    float64   `json:"average_duration_seconds"`
+	ThroughputImagesPerSecond float64   `json:"throughput_images_per_second"`
+	Accuracy                  float64   `json:"accuracy"`
+	ClassAgreement            float64   `json:"class_agreement"`
+	Backend                   string    `json:"backend"`
+}
 
 func readFile(path string, expectedSize int) []byte {
 	data, err := os.ReadFile(path)
@@ -259,6 +277,29 @@ func readPredictions(path string) ([]int, error) {
 	return predictions, nil
 }
 
+func writeBenchmarkResults(
+	path string,
+	results benchmarkResults,
+) error {
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode benchmark results: %w", err)
+	}
+
+	data = append(data, '\n')
+
+	err = os.WriteFile(path, data, 0o644)
+	if err != nil {
+		return fmt.Errorf(
+			"write benchmark results to %s: %w",
+			path,
+			err,
+		)
+	}
+
+	return nil
+}
+
 func main() {
 	expectedImageBytes := testImageCount * imageHeight * imageWidth
 
@@ -345,14 +386,66 @@ func main() {
 	}
 	defer inferenceExecutor.Finalize()
 
-	// Run inference on the complete test set.
-	allScores, err := runInference(
+	// Warm up the executor before collecting measurements.
+	_, err = runInference(
 		inferenceExecutor,
 		normalizedTestImages,
 	)
 	if err != nil {
-		log.Fatalf("could not run complete inference: %v", err)
+		log.Fatalf("could not complete warm-up inference: %v", err)
 	}
+
+	fmt.Println("Completed warm-up inference")
+
+	durations := make([]float64, 0, benchmarkRepetitions)
+	var allScores []float32
+
+	// Measure five complete inference runs.
+	for repetition := 0; repetition < benchmarkRepetitions; repetition++ {
+		startTime := time.Now()
+
+		allScores, err = runInference(
+			inferenceExecutor,
+			normalizedTestImages,
+		)
+
+		elapsedTime := time.Since(startTime).Seconds()
+
+		if err != nil {
+			log.Fatalf(
+				"could not complete benchmark run %d: %v",
+				repetition+1,
+				err,
+			)
+		}
+
+		durations = append(durations, elapsedTime)
+
+		fmt.Printf(
+			"Run %d: %.6f seconds\n",
+			repetition+1,
+			elapsedTime,
+		)
+	}
+
+	// Calculate the average duration and throughput.
+	totalDuration := 0.0
+
+	for _, duration := range durations {
+		totalDuration += duration
+	}
+
+	averageDuration := totalDuration / float64(len(durations))
+	throughput := float64(testImageCount) / averageDuration
+
+	fmt.Printf(
+		"Average duration: %.6f seconds\n",
+		averageDuration,
+	)
+	fmt.Printf(
+		"Throughput: %.2f images per second\n",
+		throughput,
+	)
 
 	allPredictions, err := scoresToPredictions(allScores)
 	if err != nil {
@@ -434,4 +527,23 @@ func main() {
 		testImageCount,
 		accuracy*100,
 	)
+	results := benchmarkResults{
+		TestImages:                testImageCount,
+		BatchSize:                 inferenceBatchSize,
+		WarmupRuns:                warmupRuns,
+		Repetitions:               benchmarkRepetitions,
+		DurationsSeconds:          durations,
+		AverageDurationSeconds:    averageDuration,
+		ThroughputImagesPerSecond: throughput,
+		Accuracy:                  accuracy,
+		ClassAgreement:            classAgreement,
+		Backend:                   backend.Name(),
+	}
+
+	err = writeBenchmarkResults(goBenchmarkPath, results)
+	if err != nil {
+		log.Fatalf("could not save Go benchmark results: %v", err)
+	}
+
+	fmt.Printf("Saved benchmark results to %s\n", goBenchmarkPath)
 }

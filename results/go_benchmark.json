@@ -1,0 +1,18 @@
+{
+  "test_images": 10000,
+  "batch_size": 32,
+  "warmup_runs": 1,
+  "repetitions": 5,
+  "durations_seconds": [
+    0.206815416,
+    0.205534917,
+    0.205514041,
+    0.208565875,
+    0.205408584
+  ],
+  "average_duration_seconds": 0.20636776660000003,
+  "throughput_images_per_second": 48457.179940231996,
+  "accuracy": 0.8714,
+  "class_agreement": 1,
+  "backend": "Go Backend"
+}
