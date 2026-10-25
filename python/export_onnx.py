@@ -13,6 +13,15 @@ RESULTS_PATH = Path("results/onnx_verification.json")
 # Load test and normalize test data
 (_, _), (test_images, test_labels) = tf.keras.datasets.fashion_mnist.load_data()
 
+assert test_images.shape == (10_000, 28, 28)
+assert test_images.dtype == "uint8"
+assert test_labels.shape == (10_000,)
+assert test_labels.dtype == "uint8"
+
+# Export test data as raw binary files for Go model
+test_images.tofile("artifacts/fashion_mnist_test_images.bin")
+test_labels.tofile("artifacts/fashion_mnist_test_labels.bin")
+
 test_images = test_images.astype("float32") / 255.0
 
 # Verify the test data
