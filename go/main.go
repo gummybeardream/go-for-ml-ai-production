@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/gomlx/compute/gobackend"
 	"github.com/gomlx/gomlx/core/graph"
@@ -19,9 +21,11 @@ const (
 	inferenceBatchSize = 32
 	classCount         = 10
 
-	imagesPath = "../artifacts/fashion_mnist_test_images.bin"
-	labelsPath = "../artifacts/fashion_mnist_test_labels.bin"
-	modelPath  = "../artifacts/fashion_mnist.onnx"
+	imagesPath            = "../artifacts/fashion_mnist_test_images.bin"
+	labelsPath            = "../artifacts/fashion_mnist_test_labels.bin"
+	modelPath             = "../artifacts/fashion_mnist.onnx"
+	goPredictionsPath     = "../results/go_predictions.csv"
+	pythonPredictionsPath = "../results/python_predictions.csv"
 )
 
 func readFile(path string, expectedSize int) []byte {
@@ -148,6 +152,47 @@ func predictBatch(
 	return predictions, nil
 }
 
+func writePredictions(path string, predictions []int) error {
+	data := make([]byte, 0, len(predictions)*2)
+
+	for _, prediction := range predictions {
+		data = strconv.AppendInt(data, int64(prediction), 10)
+		data = append(data, '\n')
+	}
+
+	err := os.WriteFile(path, data, 0o644)
+	if err != nil {
+		return fmt.Errorf("write predictions to %s: %w", path, err)
+	}
+
+	return nil
+}
+
+func readPredictions(path string) ([]int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read predictions from %s: %w", path, err)
+	}
+
+	fields := strings.Fields(string(data))
+	predictions := make([]int, len(fields))
+
+	for index, field := range fields {
+		prediction, err := strconv.Atoi(field)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse prediction on line %d: %w",
+				index+1,
+				err,
+			)
+		}
+
+		predictions[index] = prediction
+	}
+
+	return predictions, nil
+}
+
 func main() {
 	expectedImageBytes := testImageCount * imageHeight * imageWidth
 
@@ -223,7 +268,7 @@ func main() {
 	}
 	defer inferenceExecutor.Finalize()
 
-	//Run inference on the complete test set
+	// Run inference on the complete test set
 	allPredictions := make([]int, 0, testImageCount)
 	correctPredictions := 0
 
@@ -261,6 +306,48 @@ func main() {
 	}
 
 	accuracy := float64(correctPredictions) / float64(testImageCount)
+
+	err = writePredictions(goPredictionsPath, allPredictions)
+	if err != nil {
+		log.Fatalf("could not save Go predictions: %v", err)
+	}
+
+	fmt.Printf(
+		"Saved %d Go predictions to %s\n",
+		len(allPredictions),
+		goPredictionsPath,
+	)
+
+	pythonPredictions, err := readPredictions(pythonPredictionsPath)
+	if err != nil {
+		log.Fatalf("could not read Python predictions: %v", err)
+	}
+
+	if len(pythonPredictions) != len(allPredictions) {
+		log.Fatalf(
+			"prediction counts differ: Python=%d Go=%d",
+			len(pythonPredictions),
+			len(allPredictions),
+		)
+	}
+
+	matchingPredictions := 0
+
+	for index, goPrediction := range allPredictions {
+		if goPrediction == pythonPredictions[index] {
+			matchingPredictions++
+		}
+	}
+
+	classAgreement := float64(matchingPredictions) /
+		float64(len(allPredictions))
+
+	fmt.Printf(
+		"Python/Go class agreement: %d/%d = %.2f%%\n",
+		matchingPredictions,
+		len(allPredictions),
+		classAgreement*100,
+	)
 
 	fmt.Printf("Generated %d predictions\n", len(allPredictions))
 	fmt.Printf(
