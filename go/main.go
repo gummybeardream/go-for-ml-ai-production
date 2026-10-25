@@ -88,20 +88,28 @@ func argmax(values []float32) int {
 	return largestIndex
 }
 
-func predictBatch(
+func inferBatch(
 	inferenceExecutor *model.Exec,
-	imageBytes []byte,
+	normalizedImages []float32,
 	startImage int,
 	numberOfImages int,
-) ([]int, error) {
-	normalizedImages := normalizeBatch(
-		imageBytes,
-		startImage,
-		numberOfImages,
-	)
+) ([]float32, error) {
+	pixelsPerImage := imageHeight * imageWidth
+	startPixel := startImage * pixelsPerImage
+	endPixel := (startImage + numberOfImages) * pixelsPerImage
+
+	if startPixel < 0 || endPixel > len(normalizedImages) {
+		return nil, fmt.Errorf(
+			"normalized image range %d through %d is out of range",
+			startImage,
+			startImage+numberOfImages,
+		)
+	}
+
+	batchImages := normalizedImages[startPixel:endPixel]
 
 	inputTensor := tensors.FromFlatDataAndDimensions(
-		normalizedImages,
+		batchImages,
 		numberOfImages,
 		imageHeight,
 		imageWidth,
@@ -138,6 +146,64 @@ func predictBatch(
 		)
 	}
 
+	return scores, nil
+}
+
+func runInference(
+	inferenceExecutor *model.Exec,
+	normalizedImages []float32,
+) ([]float32, error) {
+	pixelsPerImage := imageHeight * imageWidth
+
+	if len(normalizedImages)%pixelsPerImage != 0 {
+		return nil, fmt.Errorf(
+			"normalized data contains %d values; expected a multiple of %d",
+			len(normalizedImages),
+			pixelsPerImage,
+		)
+	}
+
+	numberOfImages := len(normalizedImages) / pixelsPerImage
+	allScores := make([]float32, 0, numberOfImages*classCount)
+
+	for startImage := 0; startImage < numberOfImages; startImage += inferenceBatchSize {
+		currentBatchSize := inferenceBatchSize
+
+		remainingImages := numberOfImages - startImage
+		if remainingImages < inferenceBatchSize {
+			currentBatchSize = remainingImages
+		}
+
+		batchScores, err := inferBatch(
+			inferenceExecutor,
+			normalizedImages,
+			startImage,
+			currentBatchSize,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"infer batch starting at image %d: %w",
+				startImage,
+				err,
+			)
+		}
+
+		allScores = append(allScores, batchScores...)
+	}
+
+	return allScores, nil
+}
+
+func scoresToPredictions(scores []float32) ([]int, error) {
+	if len(scores)%classCount != 0 {
+		return nil, fmt.Errorf(
+			"received %d scores; expected a multiple of %d",
+			len(scores),
+			classCount,
+		)
+	}
+
+	numberOfImages := len(scores) / classCount
 	predictions := make([]int, numberOfImages)
 
 	for imageIndex := 0; imageIndex < numberOfImages; imageIndex++ {
@@ -198,6 +264,17 @@ func main() {
 
 	testImages := readFile(imagesPath, expectedImageBytes)
 	testLabels := readFile(labelsPath, testImageCount)
+
+	normalizedTestImages := normalizeBatch(
+		testImages,
+		0,
+		testImageCount,
+	)
+
+	fmt.Printf(
+		"Normalized %d test images before inference\n",
+		testImageCount,
+	)
 
 	fmt.Printf("Loaded %d image bytes\n", len(testImages))
 	fmt.Printf("Loaded %d labels\n", len(testLabels))
@@ -268,40 +345,41 @@ func main() {
 	}
 	defer inferenceExecutor.Finalize()
 
-	// Run inference on the complete test set
-	allPredictions := make([]int, 0, testImageCount)
+	// Run inference on the complete test set.
+	allScores, err := runInference(
+		inferenceExecutor,
+		normalizedTestImages,
+	)
+	if err != nil {
+		log.Fatalf("could not run complete inference: %v", err)
+	}
+
+	allPredictions, err := scoresToPredictions(allScores)
+	if err != nil {
+		log.Fatalf("could not convert scores to predictions: %v", err)
+	}
+
+	if len(allScores) != testImageCount*classCount {
+		log.Fatalf(
+			"generated %d scores; expected %d",
+			len(allScores),
+			testImageCount*classCount,
+		)
+	}
+
+	if len(allPredictions) != testImageCount {
+		log.Fatalf(
+			"generated %d predictions; expected %d",
+			len(allPredictions),
+			testImageCount,
+		)
+	}
+
 	correctPredictions := 0
 
-	for startImage := 0; startImage < testImageCount; startImage += inferenceBatchSize {
-		numberOfImages := inferenceBatchSize
-
-		remainingImages := testImageCount - startImage
-		if remainingImages < inferenceBatchSize {
-			numberOfImages = remainingImages
-		}
-
-		batchPredictions, err := predictBatch(
-			inferenceExecutor,
-			testImages,
-			startImage,
-			numberOfImages,
-		)
-		if err != nil {
-			log.Fatalf(
-				"could not predict batch starting at image %d: %v",
-				startImage,
-				err,
-			)
-		}
-
-		allPredictions = append(allPredictions, batchPredictions...)
-
-		for batchIndex, prediction := range batchPredictions {
-			testIndex := startImage + batchIndex
-
-			if prediction == int(testLabels[testIndex]) {
-				correctPredictions++
-			}
+	for index, prediction := range allPredictions {
+		if prediction == int(testLabels[index]) {
+			correctPredictions++
 		}
 	}
 
